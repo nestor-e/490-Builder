@@ -1,6 +1,5 @@
 import networkx as nwx
 import dbWrapper
-from enum import Enum
 
 
 class GraphBuilder:
@@ -15,7 +14,7 @@ class GraphBuilder:
         self.tEdgesBuilt = False
         self.nEdgesBuilt = False
 
-    def buildVertex(self):
+    def _buildVertex(self):
         if not self.vertsBuilt:
             self.names  = self.db.attestationTableByName()
             self.tabs = self.db.attestationTableByTablet()
@@ -27,7 +26,8 @@ class GraphBuilder:
                 self.tabs = inferOccurances(self.names)
             self.vertsBuilt = True
 
-    def inferOccurances(other):
+    @staticmethod
+    def _inferOccurances(other):
         occ = {}
         for key in other:
             for ref in other[key]:
@@ -38,17 +38,17 @@ class GraphBuilder:
                     occ[ref] = [key]
         return occ
 
-    def buildTabEdges(self):
+    def _buildTabEdges(self):
         if self.vertsBuilt and not self.tEdgesBuilt:
             self.tEdges = self.buildEdges(self.tabs, self.names)
             self.tEdgesBuilt = True
 
-    def buildNameEdges(self):
+    def _buildNameEdges(self):
         if self.vertsBuilt and not self.nEdgesBuilt:
             self.tEdges = self.buildEdges(self.names, self.tabs)
             self.nEdgesBuilt = True
 
-    def buildEdges(self, verts, other):
+    def _buildEdges(self, verts, other):
         edges = {}
         for v1 in verts:
             for ref in verts[v1]:
@@ -56,7 +56,8 @@ class GraphBuilder:
                     self.updateEdge(v1, v2, edges)
         return edges
 
-    def updateEdge(self, v1, v2, edgeSet):
+    @staticmethod
+    def _updateEdge(v1, v2, edgeSet):
         if v1 < v2:
             key = (v1, v2)
             if key in edgeSet:
@@ -64,7 +65,7 @@ class GraphBuilder:
             else:
                 edgeSet[key] = 1
 
-    def buildGraph(self, verts, edges, useWeights):
+    def _buildGraph(self, verts, edges, useWeights):
         vSet = [vId for vId in verts]
         eSet = []
         if useWeights:
