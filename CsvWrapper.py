@@ -1,8 +1,11 @@
-from dbWrapper import dbWrapper
+from builder import DataWrapper
 
 
-
-class CsvWrapper(dbWrapper):
+# Sample DataWrapper class
+#  Loads data from a .csv file where each row represents a tablet,
+#   the first item in that row is the Id for that tablet, and each
+#   subsiquent item in the row is a nameId appearing on that tablet
+class CsvWrapper(DataWrapper):
 
     def __init__(self, filename):
         self.input = {}
