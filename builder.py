@@ -10,6 +10,9 @@ import networkx as nwx
 #  GraphBuilder can construct 2 from 1 and vice-versa in O(n) where n is the
 #   the total number of attestations, so don't put to much work into implementing
 #   multiple options
+# TODO: Make consistant for names/tablets isolated in the graph
+#       Currently they will be included if returned dy dataWrapper but not if GraphBuilder needs to infer them
+#       For our purposes they never matter, so perhaps they shold be filtered out at some point
 class DataWrapper:
     # Returns a list of all tablets in datasource
     def getTablets(self):
@@ -89,10 +92,10 @@ class GraphBuilder:
         if v1 < v2:
             key = (v1, v2)
             if key in edgeSet:
-                edgeSet[key][weightLabel] += 1
-                edgeSet[key][linkLabel].append(link)
+                edgeSet[key][GraphBuilder.weightLabel] += 1
+                edgeSet[key][GraphBuilder.linkLabel].append(link)
             else:
-                edgeSet[key] = {weightLabel : 1, linkLabel : [link]}
+                edgeSet[key] = {GraphBuilder.weightLabel : 1, GraphBuilder.linkLabel : [link]}
 
 
 
@@ -146,9 +149,9 @@ class GraphBuilder:
             for edge in edges:
                 edgeData = {}
                 if useWeights:
-                    edgeData[weightLabel] = edges[edge][weightLabel]
+                    edgeData[self.weightLabel] = edges[edge][self.weightLabel]
                 if keepEdgeLabels:
-                    edgeData[linkLabel] = edges[edge][linkLabel]
+                    edgeData[self.linkLabel] = edges[edge][self.linkLabel]
                 eSet.append( ( edge[0], edge[1], edgeData) )
         else:
             eSet = [ edge for edge in edges]
