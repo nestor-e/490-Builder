@@ -91,6 +91,12 @@ Note:: Now requires package progressbar2
     Uses builder module to create some graphs from CDLI data.  Uses some arbitrary
     degree limits for tablet graph since building entire structure is very memory
     intensive.
+	
+  GraphMetrics.py
+	Script contains methods for counting nodes and edges in CDLI-data based graphs 
+	using various levels of degree filtering, somewhat faster and much less memory
+	intensive than actually creating the graph, so may be useful for testing 
+	configurations.
 
 Data Files:
   DemoGraph.csv - simple representation of a small graph for testing with csvWrapper.py
