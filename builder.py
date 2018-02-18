@@ -1,4 +1,6 @@
 import networkx as nwx
+from progressbar import ProgressBar as Pb
+import CdliWrapper
 
 
 #  Base wrapper class for datasources to build graphs from.
@@ -60,132 +62,173 @@ class GraphBuilder:
     # Constructor requires a single argument, An instance of DataWrapper from
     # which to draw data
     weightLabel = 'weight'
-    linkLabel = 'linkedBy'
+    typeLabel = 'type'
+
+    @staticmethod
+    def settify(dictOfItterables):
+        r = {}
+        for key in dictOfItterables:
+            r[key] = set(dictOfItterables[key])
+        return r
+
+    @staticmethod
+    def buildInverse(dictOfSets):
+        r = {}
+        for key in dictOfSets:
+            for value in dictOfSets[key]:
+                if value not in r:
+                    r[value] = set()
+                r[value].add(key)
+        return r
+
+    @staticmethod
+    def degreeCheck(actual, minD, maxD):
+        return (minD == None or actual >= minD) and (maxD == None or actual <= maxD)
+
+    @staticmethod
+    def filterConnections(connections, minConDegree, maxConDegree):
+        r = {}
+        b = Pb()
+        for con in b(connections):
+            deg = len(connections[con])
+            if GraphBuilder.degreeCheck(deg, minConDegree, maxConDegree):
+                r[con] = set(connections[con])
+
+        return r
+
+    @staticmethod
+    def filterVert(verticies, connections, minVertDegree, maxVertDegree):
+        r = {}
+        b = Pb()
+        for v in b(verticies):
+            adj = set()
+            attest = set()
+            for con in verticies[v]:
+                if con in connections:
+                    attest.add(con)
+                    for otherV in connections[con]:
+                        if otherV != v:
+                            adj.add(otherV)
+            if GraphBuilder.degreeCheck(len(adj), minVertDegree, maxVertDegree):
+                r[v] = attest
+        return r
+
+    @staticmethod
+    def buildGraph(verticies, connections, useWeights=True, minConDegree=None,
+                    maxConDegree=None, minVertDegree=None, maxVertDegree=None):
+        print "Filtering connections..."
+        connections = GraphBuilder.filterConnections(connections, minConDegree, maxConDegree)
+        print "Filtering verticies..."
+        verticies = GraphBuilder.filterVert(verticies, connections, minVertDegree, maxVertDegree)
+        vList = sorted([vId for vId in verticies])
+
+        G = nwx.Graph()
+        print "Building graph..."
+        b = Pb()
+        for v in b(vList):
+            G.add_node(v)
+            edges = {}
+            for con in verticies[v]:
+                for otherV in connections[con]:
+                    if otherV < v and otherV in verticies:
+                        if otherV not in edges:
+                            edges[otherV] = 0
+                        edges[otherV] += 1
+            for otherV in edges:
+                G.add_edge(v, otherV)
+                if useWeights:
+                    G.edges[v, otherV].update({GraphBuilder.weightLabel : edges[otherV]})
+
+        return G
 
     def __init__(self, dbSource):
         self._db = dbSource
         self._names = None
         self._tabs = None
-        self._nEdges = None
-        self._tEdges = None
-        self._vertsBuilt = False
-        self._tEdgesBuilt = False
-        self._nEdgesBuilt = False
+        self._populate()
+
+    def _populate(self):
+        try:
+            print "Loading data from wrapper..."
+            names = self._db.attestationTableByName()
+            tablets = self._db.attestationTableByTablet()
+            print "Done."
+        except AttributeError:
+            print "Supplied data source not of correct type"
+            raise
+
+        if names == None and tablets == None:
+            print "Supplied data source returns no data"
+            raise RuntimeError()
+
+        if names != None:
+            print "Reading names..."
+            names = GraphBuilder.settify(names)
+            print "Done."
+        if tablets != None:
+            print "Reading tablets..."
+            tablets = GraphBuilder.settify(tablets)
+            print "Done."
+
+        if tablets == None:
+            print "Generating tablets from names..."
+            tablets = GraphBuilder.buildInverse(names)
+            print "Done."
+        if names == None:
+            print "Generating names from tablets..."
+            names = GraphBuilder.buildInverse(tablets)
+            print "Done."
+
+        self._tabs = tablets
+        self._names = names
+
+    def buildMultiLevelGraph(self, minDegree=None, maxDegree=None):
+        G = nwx.Graph()
+        names = self._names
+        tabs = self._tabs
+        keptNames = set()
+        keptTabs = set()
+
+        for nId in names:
+            if GraphBuilder.degreeCheck(len(names[nId]), minDegree, maxDegree):
+                keptNames.add(nId)
+
+        for tId in tabs:
+            if GraphBuilder.degreeCheck(len(tabs[tId]), minDegree, maxDegree):
+                keptTabs.add(tId)
+
+        for tId in keptTabs:
+            G.add_node(tId)
+            G.nodes[tId][GraphBuilder.typeLabel] = 'tablet'
+
+        for nId in keptNames:
+            G.add_node(nId)
+            G.nodes[nId][GraphBuilder.typeLabel] = 'name'
+
+        for tId in keptTabs:
+            for nId in tabs[tId]:
+                if nId in keptNames:
+                    G.add_edge(tId, nId)
+
+        return G
+
+    def buildNameGraph(self, useWeights=True, minConDegree=None, maxConDegree=None,
+                        minVertDegree=None, maxVertDegree=None):
+        return self.buildGraph(self._names, self._tabs, useWeights, minConDegree, maxConDegree,
+                        minVertDegree, maxVertDegree)
 
 
-
-    # Can infer names from there occuraces on tablets and vice-versa
-    @staticmethod
-    def _inferOccurances(other):
-        occ = {}
-        for key in other:
-            for ref in other[key]:
-                if ref in occ:
-                    if key not in occ[ref]:
-                        occ[ref].append(key)
-                else:
-                    occ[ref] = [key]
-        return occ
-
-    @staticmethod
-    def _updateEdge(v1, v2, link, edgeSet):
-        if v1 < v2:
-            key = (v1, v2)
-            if key in edgeSet:
-                edgeSet[key][GraphBuilder.weightLabel] += 1
-                edgeSet[key][GraphBuilder.linkLabel].append(link)
-            else:
-                edgeSet[key] = {GraphBuilder.weightLabel : 1, GraphBuilder.linkLabel : [link]}
+    def buildTabletGraph(self, useWeights=True, minConDegree=None, maxConDegree=None,
+                        minVertDegree=None, maxVertDegree=None):
+        return self.buildGraph(self._tabs, self._names, useWeights, minConDegree, maxConDegree,
+                        minVertDegree, maxVertDegree)
 
 
+def main():
+    path = '../snerData/atf_parsed.json'
+    w = CdliWrapper.CdliWrapper(path)
+    gb = GraphBuilder(w)
+    G = gb.buildNameGraph(minVertDegree=3, maxVertDegree=600, minConDegree=2, maxConDegree=20)
 
-
-    def _buildVertex(self):
-        if not self._vertsBuilt:
-            try:
-                self._names  = self._db.attestationTableByName()
-                self._tabs = self._db.attestationTableByTablet()
-            except AttributeError:
-                print "Error: Supplied data source of wrong type"
-                raise
-            if (not self._names) and (not self._tabs):
-                print "Error: Data source returns no data"
-                return
-            elif not self._names:
-                self._names = self._inferOccurances(self._tabs)
-            elif not self._tabs:
-                self._tabs = self._inferOccurances(self._names)
-            self._vertsBuilt = True
-
-
-
-
-    def _buildEdges(self, verts, other):
-        edges = {}
-        for v1 in verts:
-            for ref in verts[v1]:
-                for v2 in other[ref]:
-                    self._updateEdge(v1, v2, ref, edges)
-        return edges
-
-    def _buildTabEdges(self):
-        if self._vertsBuilt and not self._tEdgesBuilt:
-            self._tEdges = self._buildEdges(self._tabs, self._names)
-            self._tEdgesBuilt = True
-
-    def _buildNameEdges(self):
-        if self._vertsBuilt and not self._nEdgesBuilt:
-            self._nEdges = self._buildEdges(self._names, self._tabs)
-            self._nEdgesBuilt = True
-
-
-
-
-
-    def _buildGraph(self, verts, edges, useWeights, keepEdgeLabels):
-        vSet = [vId for vId in verts]
-        eSet = []
-        if useWeights or keepEdgeLabels:
-            for edge in edges:
-                edgeData = {}
-                if useWeights:
-                    edgeData[self.weightLabel] = edges[edge][self.weightLabel]
-                if keepEdgeLabels:
-                    edgeData[self.linkLabel] = edges[edge][self.linkLabel]
-                eSet.append( ( edge[0], edge[1], edgeData) )
-        else:
-            eSet = [ edge for edge in edges]
-        g = nwx.Graph()
-        g.add_nodes_from(vSet)
-        g.add_edges_from(eSet)
-        return g
-
-
-    #  Returns a NetworkX graph ( networkx.Graph ) representing the associations between tablets
-    #  takes 2 optional named boolean parameters:
-    #   useWeights : to indicate wether the resulting graph should have edge weights
-    #       Stored in NetworkX graph with key GraphBuilder.weightLabel
-    #   keepEdgeLabels : to indicate wether edges shoould be labeled by the names that associate them
-    #       Stored in NetworkX graph with key GraphBuilder.linkLabel
-    def getTabletGraph(self, useWeights = True, keepEdgeLabels = False):
-        self._buildVertex()
-        self._buildTabEdges()
-        if not (self._tEdgesBuilt and self._vertsBuilt):
-            print "Error: could not build graph"
-            return None
-        return self._buildGraph(self._tabs, self._tEdges, useWeights, keepEdgeLabels)
-
-
-    #  Returns a NetworkX graph ( networkx.Graph ) representing the associations between names
-    #  takes 2 optional named boolean parameters:
-    #   useWeights : to indicate wether the resulting graph should have edge weights
-    #       Stored in NetworkX graph with key GraphBuilder.weightLabel
-    #   keepEdgeLabels : to indicate wether edges shoould be labeled by the tablets that associate them
-    #       Stored in NetworkX graph with key GraphBuilder.linkLabel
-    def getNameGraph(self, useWeights = True, keepEdgeLabels = False):
-        self._buildVertex()
-        self._buildNameEdges()
-        if not (self._nEdgesBuilt and self._vertsBuilt):
-            print "Error: could not build graph"
-            return None
-        return self._buildGraph(self._names, self._nEdges, useWeights, keepEdgeLabels)
+if __name__ == '__main__':
+    main()

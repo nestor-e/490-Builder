@@ -1,4 +1,7 @@
 Python Files
+
+Note:: Now requires package progressbar2
+
   builder.py
     Contains a python module for creating NetworkX graph of co-occurrences of names
     and tablets in a way which is flexible for different data sources.
@@ -13,31 +16,58 @@ Python Files
 
     2: builder.GraphBuiilder
         Factory object for constructing graphs.  Takes an instance of builder.DataWrapper
-        in the constructor, and implements 2 instance methods for creating graphs:
+        in the constructor, and implements 3 instance methods for creating graphs:
 
-        builder.GraphBuilder.getTabletGraph( useWeights = True, keepEdgeLabels = False)
-        builder.GraphBuilder.getNameGraph(useWeights = True, keepEdgeLabels = False)
+        buildNameGraph( useWeights=True, minConDegree=None, maxConDegree=None,
+                        minVertDegree=None, maxVertDegree=None)
 
-        Both methods take 2 optional arguments, which determine if edge weights
-        should be included (defaults to True) and if edges should be labeled by
-        the id's of the things that caused that link to exist (defaults to False).
+        buildTabletGraph( useWeights=True, minConDegree=None, maxConDegree=None,
+                          minVertDegree=None, maxVertDegree=None)
 
-        Both methods return a networkx.Graph:
+        buildMultiLevelGraph( minDegree=None, maxDegree=None)
+
+        buildNameGraph and buildTabletGraph methods take the following optional
+        arguments:
+
+            - useWeight :  Determines if the output graph should be weighted or
+                            unweighted.  Defualts to weighted.
+
+            - minConDegree/maxConDegree : minimum/maximum allowed degree for the
+                objects responsible for creating connections between the nodes.
+                For example, in buildTabletGraph, only names with degree between
+                minConDegree and maxConDegree would be considered when creating
+                edges between tablets.  Defualt is None, which causes no filtering
+                to occur.
+
+            - minVertDegree/maxVertDegree : minimum/maximum allowed degree for
+                nodes in the final graph.  All nodes with degree outside these
+                bounds will be removed, as will edges incident to them.  Defualt
+                is None, which causes no filtering to occur.
+
+        buildMultiLevelGraph returns an unweighted graph containing both names and
+        tablets as nodes.  Each node in the graph is labeled as either a name or
+        a tablet.  buildMultiLevelGraph takes the following optional arguments:
+
+            - minDegree/maxDegree : minimum/maximum allowed degree for
+                nodes in the final graph.  All nodes with degree outside these
+                bounds will be removed, as will edges incident to them.  Defualt
+                is None, which causes no filtering to occur.
+
+        All methods return a networkx.Graph:
           https://networkx.github.io/documentation/stable/reference/classes/graph.html
 
-        getTabletGraph creates the graph where nodes are tablets and tablets are
+        buildTabletGraph creates the graph where nodes are tablets and tablets are
         joined by an edge if they both contain the same name.  Edge weights in
-        this graph are the number of names the joined tablets share, and edges can
-        be label by the id's of those names.
+        this graph are the number of names the joined tablets share.
 
-        getNameGraph creates the graph where nodes are names and are two names are
+        buildNameGraph creates the graph where nodes are names and are two names are
         joined by an edge if those names appear on the same tablet.  Weights in
         this graph are the number of tablets on which the pair of names occur
-        together, and edges can be labeled by the id's of the tablets on which both
-        names appear.
+        together.
 
-        GraphBuilder instances have non-trivial memory footprint and should be
-        deleted once the desired graphs have been built.
+        buildMultiLevelGraph creates a graph with both names and tablets as nodes.
+        Edges are unweighted, and join a tablet to a name if the name appears on
+        that tablet.
 
   csvWrapper.py
     Demo of a subclass of builder.DataWrapper, can be used with DemoGraph.csv to
@@ -46,16 +76,30 @@ Python Files
   garshanaWrapper.py
     Contains GarshanaCsvWrapper, a subclass of builder.DataWrapper.  Used to
     interpret the data from the original csv version of the Garshana corpus we
-    created last quarter (Attestations.csv, also included in this repo)
+    created last quarter.
+
+  CdliWrapper.py
+    Containd CdliWrapper, a subclass of builder.DataWrapper.  Used to feed json
+    results from sner into GraphBuilder.
 
   garrshanaToGexf.py
     Uses builder module and built-in NetworkX functionality to convert Garshana
     data into gexf file format for use with Gephi.  Also serves as an example of
     usage of the module.
 
+  CDLItoGEXF.py
+    Uses builder module to create some graphs from CDLI data.  Uses some arbitrary
+    degree limits for tablet graph since building entire structure is very memory
+    intensive.
+	
+  GraphMetrics.py
+	Script contains methods for counting nodes and edges in CDLI-data based graphs 
+	using various levels of degree filtering, somewhat faster and much less memory
+	intensive than actually creating the graph, so may be useful for testing 
+	configurations.
+
 Data Files:
   DemoGraph.csv - simple representation of a small graph for testing with csvWrapper.py
   DemoGraphExpected.pdf - Diagram of expected results for DemoGraph.csv
-  Attestations.csv - Data for Garshana corpus, in csv form, from last quarter.
   pip-dependancies.txt - output of pip freeze, a description of required python
     modules for this project.

@@ -12,13 +12,16 @@ import sys
 # nameGraph = gFact.getNameGraph()
 # nwx.write_gexf(nameGraph, 'GarshanaNameGraph.gexf')
 def main(data, names):
-    wrapper = CdliWrapper(data, names)
+    wrapper = CdliWrapper(data)
     build = GraphBuilder(wrapper)
-    tabGraph = build.getTabletGraph()
-    nwx.write_gexf(tabGraph, 'CdliTabletGraph.gexf')
+    tabGraph = build.buildTabletGraph(maxConDegree=2500, maxVertDegree=1000)
+    nwx.write_gexf(tabGraph, 'CdliTabletGraph_lowDegree.gexf')
     del tabGraph
-    nameGraph = build.getNameGraph()
+    nameGraph = build.buildNameGraph()
     nwx.write_gexf(nameGraph, 'CdliNameGraph.gexf')
+    del namegraph
+    nameGraph = build.buildMultiLevelGraph()
+    nwx.write_gexf(nameGraph, 'CdliMultiGraph.gexf')
 
 
 if __name__ == '__main__':
