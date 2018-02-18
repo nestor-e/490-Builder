@@ -62,6 +62,7 @@ class GraphBuilder:
     # Constructor requires a single argument, An instance of DataWrapper from
     # which to draw data
     weightLabel = 'weight'
+    typeLabel = 'type'
 
     @staticmethod
     def settify(dictOfItterables):
@@ -112,6 +113,33 @@ class GraphBuilder:
                 r[v] = attest
         return r
 
+    @staticmethod
+    def buildGraph(verticies, connections, useWeights=True, minConDegree=None,
+                    maxConDegree=None, minVertDegree=None, maxVertDegree=None):
+        print "Filtering connections..."
+        connections = GraphBuilder.filterConnections(connections, minConDegree, maxConDegree)
+        print "Filtering verticies..."
+        verticies = GraphBuilder.filterVert(verticies, connections, minVertDegree, maxVertDegree)
+        vList = sorted([vId for vId in verticies])
+
+        G = nwx.Graph()
+        print "Building graph..."
+        b = Pb()
+        for v in b(vList):
+            G.add_node(v)
+            edges = {}
+            for con in verticies[v]:
+                for otherV in connections[con]:
+                    if otherV < v and otherV in verticies:
+                        if otherV not in edges:
+                            edges[otherV] = 0
+                        edges[otherV] += 1
+            for otherV in edges:
+                G.add_edge(v, otherV)
+                if useWeights:
+                    G.edges[v, otherV].update({GraphBuilder.weightLabel : edges[otherV]})
+
+        return G
 
     def __init__(self, dbSource):
         self._db = dbSource
@@ -154,32 +182,33 @@ class GraphBuilder:
         self._tabs = tablets
         self._names = names
 
-    @staticmethod
-    def buildGraph(verticies, connections, useWeights=True, minConDegree=None,
-                    maxConDegree=None, minVertDegree=None, maxVertDegree=None):
-        print "Filtering connections..."
-        connections = GraphBuilder.filterConnections(connections, minConDegree, maxConDegree)
-        print "Filtering verticies..."
-        verticies = GraphBuilder.filterVert(verticies, connections, minVertDegree, maxVertDegree)
-        vList = sorted([vId for vId in verticies])
-
+    def buildMultiLevelGraph(self, minDegree=None, maxDegree=None):
         G = nwx.Graph()
-        print "Building graph..."
-        b = Pb()
-        for v in b(vList):
-            G.add_node(v)
-            edges = {}
-            for con in verticies[v]:
-                for otherV in connections[con]:
-                    if otherV < v and otherV in verticies:
-                        if otherV not in edges:
-                            edges[otherV] = 0
-                        edges[otherV] += 1
-            for otherV in edges:
-                if useWeights:
-                    G.add_edge(v, otherV, weight=edges[otherV])
-                else:
-                    G.add_edge(v, otherV)
+        names = self._names
+        tabs = self._tabs
+        keptNames = set()
+        keptTabs = set()
+
+        for nId in names:
+            if GraphBuilder.degreeCheck(len(names[nId]), minDegree, maxDegree):
+                keptNames.add(nId)
+
+        for tId in tabs:
+            if GraphBuilder.degreeCheck(len(tabs[tId]), minDegree, maxDegree):
+                keptTabs.add(tId)
+
+        for tId in keptTabs:
+            G.add_node(tId)
+            G.nodes[tId][GraphBuilder.typeLabel] = 'tablet'
+
+        for nId in keptNames:
+            G.add_node(nId)
+            G.nodes[nId][GraphBuilder.typeLabel] = 'name'
+
+        for tId in keptTabs:
+            for nId in tabs[tId]:
+                if nId in keptNames:
+                    G.add_edge(tId, nId)
 
         return G
 
