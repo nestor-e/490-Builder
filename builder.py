@@ -1,6 +1,5 @@
 import networkx as nwx
 from progressbar import ProgressBar as Pb
-import CdliWrapper
 
 
 #  Base wrapper class for datasources to build graphs from.
@@ -222,13 +221,3 @@ class GraphBuilder:
                         minVertDegree=None, maxVertDegree=None):
         return self.buildGraph(self._tabs, self._names, useWeights, minConDegree, maxConDegree,
                         minVertDegree, maxVertDegree)
-
-
-def main():
-    path = '../snerData/atf_parsed.json'
-    w = CdliWrapper.CdliWrapper(path)
-    gb = GraphBuilder(w)
-    G = gb.buildNameGraph(minVertDegree=3, maxVertDegree=600, minConDegree=2, maxConDegree=20)
-
-if __name__ == '__main__':
-    main()
